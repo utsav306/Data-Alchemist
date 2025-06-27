@@ -1,0 +1,4 @@
+@import "tailwindcss";
+.error-cell {
+  @apply bg-red-100 text-red-700 font-medium;
+}
