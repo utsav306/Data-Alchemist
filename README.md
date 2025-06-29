@@ -47,12 +47,15 @@ A powerful data management and validation application built with Next.js, React,
 - npm or yarn package manager
 - Google Gemini API key (for AI features)
 
+### Sample Test Data
+- Sample Data are provided in the Samples folder. 
+
 ### Installation
 
 1. **Clone the repository**
 
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/utsav306/Data-Alchemist.git
    cd dataalchemist
    ```
 
