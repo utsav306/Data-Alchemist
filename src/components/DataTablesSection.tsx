@@ -3,20 +3,33 @@ import { EditableTable } from "./EditableTable";
 import { GridColDef } from "@mui/x-data-grid";
 import NaturalLanguageDataQuery from "./NaturalLanguageDataQuery";
 
+/**
+ * Props interface for the DataTablesSection component
+ *
+ * Defines the properties required for displaying and managing data tables,
+ * including data arrays, error handling, and update callbacks.
+ */
 interface DataTablesSectionProps {
+  /** Array of client records to display */
   clients: any[];
+  /** Array of worker records to display */
   workers: any[];
+  /** Array of task records to display */
   tasks: any[];
+  /** Array of validation errors to highlight in tables */
   errors: any[];
+  /** Callback function to update table rows */
   updateRow: (
     table: "clients" | "workers" | "tasks",
     id: number,
     field: string,
     value: any,
   ) => void;
+  /** Boolean indicating if data has been loaded */
   dataLoaded?: boolean;
 }
 
+// Column definitions for the clients data table
 const clientCols: GridColDef[] = [
   { field: "ClientID", headerName: "Client ID", width: 150, editable: true },
   { field: "ClientName", headerName: "Name", width: 150, editable: true },
@@ -41,6 +54,7 @@ const clientCols: GridColDef[] = [
   },
 ];
 
+// Column definitions for the workers data table
 const workerCols: GridColDef[] = [
   { field: "WorkerID", headerName: "Worker ID", width: 150, editable: true },
   { field: "WorkerName", headerName: "Name", width: 150, editable: true },
@@ -66,6 +80,7 @@ const workerCols: GridColDef[] = [
   },
 ];
 
+// Column definitions for the tasks data table
 const taskCols: GridColDef[] = [
   { field: "TaskID", headerName: "Task ID", width: 150, editable: true },
   { field: "TaskName", headerName: "Name", width: 150, editable: true },
@@ -86,6 +101,33 @@ const taskCols: GridColDef[] = [
   },
 ];
 
+/**
+ * DataTablesSection component for displaying and managing data tables
+ *
+ * This component provides a comprehensive interface for viewing and editing
+ * client, worker, and task data. It includes filtering capabilities, error
+ * highlighting, and natural language query support.
+ *
+ * Features:
+ * - Interactive data tables with inline editing
+ * - Advanced filtering with natural language queries
+ * - Error highlighting for data validation issues
+ * - Responsive design with Material-UI DataGrid
+ * - Support for complex filter operations (>, <, =, contains)
+ *
+ * @param {DataTablesSectionProps} props - Component properties
+ * @returns {JSX.Element} Data tables interface with filtering capabilities
+ *
+ * @example
+ * <DataTablesSection
+ *   clients={clientData}
+ *   workers={workerData}
+ *   tasks={taskData}
+ *   errors={validationErrors}
+ *   updateRow={handleRowUpdate}
+ *   dataLoaded={true}
+ * />
+ */
 export default function DataTablesSection({
   clients,
   workers,
@@ -94,42 +136,67 @@ export default function DataTablesSection({
   updateRow,
   dataLoaded = true,
 }: DataTablesSectionProps) {
+  // State management for filtering functionality
   const [filter, setFilter] = useState<any>(null);
   const [filteredRows, setFilteredRows] = useState<any[]>([]);
   const [filteredTable, setFilteredTable] = useState<string>("");
 
-  // Filtering logic
+  /**
+   * Applies filtering logic to data tables based on filter criteria
+   *
+   * This function handles complex filtering operations including:
+   * - Error-only filtering (__showErrors)
+   * - Numeric comparisons (>, <, =)
+   * - String matching (case-insensitive)
+   * - Array/CSV field searching
+   * - Multiple condition filtering
+   *
+   * @param {string} table - The table to filter (clients, workers, tasks)
+   * @param {any} filter - The filter criteria to apply
+   * @returns {any[]} Filtered array of rows
+   */
   const getFiltered = (table: string, filter: any) => {
     if (!filter) return [];
+
+    // Special case: show only rows with errors
     if (filter.filter && filter.filter.__showErrors) {
-      // Show only rows with errors for the selected table
       let rows = [];
       let tableErrors = errors;
+
+      // Select the appropriate data array based on table type
       if (table === "clients") rows = clients;
       if (table === "workers") rows = workers;
       if (table === "tasks") rows = tasks;
+
       // Get all row IDs with errors for this table
       const errorRowIds = tableErrors
         .filter((e) => !table || e.table === table)
         .map((e) => e.row);
-      // Only show rows whose ID is in errorRowIds
+
+      // Return only rows whose ID is in the error list
       return rows.filter((row) =>
         errorRowIds.includes(
           row.ClientID || row.WorkerID || row.TaskID || row.id,
         ),
       );
     }
+
     if (!filter.filter) return [];
+
     let rows = [];
+    // Select the appropriate data array based on table type
     if (table === "clients") rows = clients;
     if (table === "workers") rows = workers;
     if (table === "tasks") rows = tasks;
-    // Enhanced filter: all keys must match
+
+    // Enhanced filter: all keys must match (AND logic)
     return rows.filter((row) => {
       return Object.entries(filter.filter).every(([key, value]) => {
-        if (key === "__showErrors") return true; // skip special key
+        if (key === "__showErrors") return true; // Skip special key
+
         const rowVal = row[key];
-        // Numeric comparison: string format
+
+        // Handle numeric comparisons with string format (e.g., ">5", "<10")
         if (typeof value === "string" && value.startsWith(">")) {
           const num = parseFloat((value as string).slice(1));
           return parseFloat(rowVal) > num;
@@ -138,7 +205,8 @@ export default function DataTablesSection({
           const num = parseFloat((value as string).slice(1));
           return parseFloat(rowVal) < num;
         }
-        // Numeric comparison: object format { $gt: 2 }, { $lt: 3 }
+
+        // Handle numeric comparisons with object format (e.g., { $gt: 2 }, { $lt: 3 })
         if (typeof value === "object" && value !== null) {
           if ("$gt" in value) {
             return parseFloat(rowVal) > parseFloat(String(value["$gt"]));
@@ -150,28 +218,38 @@ export default function DataTablesSection({
             return parseFloat(rowVal) === parseFloat(String(value["$eq"]));
           }
         }
-        // Array or comma-separated string contains
+
+        // Handle array field searching (case-insensitive)
         if (Array.isArray(rowVal)) {
           return rowVal
             .map((v) => v.toString().toLowerCase())
             .includes((value as string).toLowerCase());
         }
+
+        // Handle comma-separated string field searching
         if (typeof rowVal === "string" && rowVal.includes(",")) {
           return rowVal
             .split(",")
             .map((v) => v.trim().toLowerCase())
             .includes((value as string).toLowerCase());
         }
-        // Case-insensitive string match
+
+        // Handle case-insensitive string matching
         if (typeof rowVal === "string" && typeof value === "string") {
           return rowVal.toLowerCase() === (value as string).toLowerCase();
         }
-        // Fallback: loose equality
+
+        // Fallback: loose equality comparison
         return rowVal == value;
       });
     });
   };
 
+  /**
+   * Handles filter application based on filter rules
+   *
+   * @param {any} filterRule - The filter rule to apply
+   */
   const handleFilter = (filterRule: any) => {
     if (!filterRule || !filterRule.table) return;
     setFilter(filterRule);
@@ -179,6 +257,9 @@ export default function DataTablesSection({
     setFilteredRows(getFiltered(filterRule.table, filterRule));
   };
 
+  /**
+   * Clears all active filters and resets to show all data
+   */
   const handleClear = () => {
     setFilter(null);
     setFilteredRows([]);
@@ -187,11 +268,14 @@ export default function DataTablesSection({
 
   return (
     <section className="space-y-8 my-8">
+      {/* Natural language query interface for filtering */}
       <NaturalLanguageDataQuery
         onFilter={handleFilter}
         onClear={handleClear}
         filter={filter}
       />
+
+      {/* Active filter display */}
       {filter && (
         <div className="mb-2 text-sm text-blue-700 dark:text-blue-300">
           <span className="font-semibold">Filter:</span>{" "}
